@@ -1,0 +1,94 @@
+#!/bin/dash
+
+# If the .pushy repo hasnt been initialised then throw 
+# uninitalised error and exit
+if [ ! -d ".pushy" ];
+then
+    echo "$0: error: pushy repository directory .pushy not found" 
+    exit 1
+fi
+
+last_commit=$(find .pushy/commits -type d | sort -n | tail -n 1)
+
+# Adds files to the index history file if in current directory and not in the index history file
+# Doesnt add the .pushy directory, pushy script files and test files and any existing files in the index history file
+for file in *; 
+do
+    if echo "$file" | grep -qE '^(\..*$|\.pushy$|pushy-.*|test[0-9]{2}\.sh$)' > /dev/null 2>&1; 
+    then
+        continue
+    fi
+
+    if ! grep -Eq "$file" < ".pushy/.index_history.txt" > /dev/null 2>&1;
+    then
+        echo "$file" >> ".pushy/.index_history.txt"
+    fi
+done
+
+# Sort the index history file to maintain order of current directory
+sort ".pushy/.index_history.txt" > ".pushy/.index_history.txt.tmp"
+mv ".pushy/.index_history.txt.tmp" ".pushy/.index_history.txt"
+rm -f ".pushy/.index_history.txt.tmp"
+
+# Iterate through the index history file and check the status of each file
+while IFS= read -r file;
+do
+    # If the file has been completely deleted from the repo
+    if [ ! -f "$file" ] && [ ! -f ".pushy/index/$file" ] && output=$(find "$last_commit" -name "$file") && [ -z "$output" ];
+    then
+        continue
+    # If file created with no previous commits and not added to index - untracked
+    elif [ ! -f ".pushy/index/$file" ] && output=$(find "$last_commit" -name "$file") && [ -z "$output" ];
+    then
+        echo "$file - untracked"
+    # If file created and added to index with no previous commits or changes - added to index
+    elif [ -f ".pushy/index/$file" ] && output=$(find ".pushy/commits" -name "$file") && [ -z "$output" ] && diff -q "$file" ".pushy/index/$file" >/dev/null 2>&1;
+    then
+        echo "$file - added to index"
+    # If file has been committed previously and has been deleted from current directory and index - deleted
+    elif [ ! -f "$file" ] && [ ! -f ".pushy/index/$file" ] && output=$(find .pushy/commits -name "$file") && [ -n "$output" ];
+    then
+        echo "$file - file deleted, deleted from index"
+    # If file deleted from current directory but exists in index and has previously been committed - deleted
+    elif [ ! -f "$file" ] && [ -f ".pushy/index/$file" ] && output=$(find "$last_commit" -name "$file") && [ -n "$output" ];
+    then
+        echo "$file - file deleted"
+    # If file not in index but has been previously committed (rm -- cached used) - deleted from index
+    elif [ ! -f ".pushy/index/$file" ] && output=$(find "$last_commit" -name "$file") && [ -n "$output" ];
+    then
+        echo "$file - deleted from index"
+    # If changes have been made to the file and not added to index - file changed, changes not staged for commit
+    elif ! diff -q "$file" ".pushy/index/$file" >/dev/null 2>&1 && 
+    diff -q ".pushy/index/$file" "$last_commit/$file" >/dev/null 2>&1;
+    then
+        echo "$file - file changed, changes not staged for commit"
+    # If file has staged changes in the index and no changes in the repo - file staged for commit
+    elif diff -q "$file" ".pushy/index/$file" >/dev/null 2>&1 &&
+        [ -f ".pushy/index/$file" ] &&
+        ! diff -q "$file" ".pushy/$file" >/dev/null 2>&1 &&
+        ! diff -q "$file" "$last_commit/$file" >/dev/null 2>&1;
+    then
+        echo "$file - file changed, changes staged for commit"
+    # If the file hasnt been committed before and has been deleted from the current directory but exists in the index - added to index, file deleted
+    elif [ -f ".pushy/index/$file" ] && output=$(find ".pushy/commits" -name "$file") && [ -z "$output" ] && 
+        ! [ -f "$file" ];
+    then
+        echo "$file - added to index, file deleted"
+    # If the file hasnt been committed before and has changes in the current directory - added to index, file changed
+    elif [ -f ".pushy/index/$file" ] && output=$(find ".pushy/commits" -name "$file") && [ -z "$output" ] && 
+        ! diff -q "$file" ".pushy/index/$file" >/dev/null 2>&1;
+    then
+        echo "$file - added to index, file changed"
+    # If file has uncommitted changes and unadded changes (different to index) - file changed, different changes staged for commit 
+    elif ! diff -q "$file" ".pushy/index/$file" >/dev/null 2>&1;
+    then
+        echo "$file - file changed, different changes staged for commit"
+    # If file in index has been committed and no changes have been made to the file - same as repo
+    elif diff -q "$file" ".pushy/index/$file" >/dev/null 2>&1 &&
+        diff -q "$file" "$last_commit/$file" >/dev/null 2>&1; 
+    then
+        echo "$file - same as repo"
+    fi
+    
+done < ".pushy/.index_history.txt"
+

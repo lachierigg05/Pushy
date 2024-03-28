@@ -1,0 +1,15 @@
+#!/bin/dash
+
+# Checks for an already existing repo
+if ! mkdir .pushy 2>/dev/null; 
+then 
+    echo "$0: error: .pushy already exists"
+    exit 1
+fi
+
+# Adds setup files and directories to the pushy repo
+mkdir -p .pushy/index .pushy/commits
+touch .pushy/log.txt .pushy/.index_history.txt
+echo 0 >> .pushy/commits/commit_number.txt
+
+echo "Initialized empty pushy repository in .pushy"

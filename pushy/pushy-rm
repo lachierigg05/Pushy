@@ -1,0 +1,131 @@
+#!/bin/dash
+
+# If the .pushy repo hasnt been initialised then throw 
+# uninitalised error and exit
+if [ ! -d ".pushy" ];
+then
+    echo "$0: error: pushy repository directory .pushy not found" 
+    exit 1
+fi
+
+# If the wrong options are given 
+if [ "$#" -lt 1 ] || \
+   # If no option is chosen and no files were given
+{ [ "$1" != "--force" ] && [ "$1" != "--cached" ] && [ "$#" -lt 1 ]; } || \
+   # If one option was chosen but no files were given
+{ [ "$1" = "--force" ] || [ "$1" = "--cached" ] && [ "$#" -lt 2 ]; } || \
+   # If both options were chosen and no files were given
+{ [ "$1" = "--force" ] && [ "$2" = "--cached" ] && [ "$#" -lt 3 ] || \
+    [ "$1" = "--cached" ] && [ "$2" = "--force" ] && [ "$#" -lt 3 ]; }
+then
+    echo "usage: pushy-rm [--force] [--cached] filenames"
+    exit 1
+fi
+
+cached_checked=0
+force_checked=0
+
+# Marks the given option as true if given (in any order)
+if [ "$1" = "--cached" ] || [ "$2" = "--cached" ];
+then
+    cached_checked=1
+fi
+
+if [ "$1" = "--force" ] || [ "$2" = "--force" ];
+then
+    force_checked=1
+fi
+
+temp_dir=$(mktemp -d)
+temp_file=$(mktemp)
+
+# Helper function that keeps a backup of the file
+# in case of an error throughout the script
+backup_file() {
+    if [ -f "$1" ];
+    then
+        cp "$1" "$temp_dir"
+    fi
+}
+
+# Helper function that restores the files to their original state
+# if an error occurs throughout the script
+restore_files() {
+    xargs -I {} sh -c "cp -f ""$temp_dir"/{}" "./{}" && cp -f ""$temp_dir"/{}" ".pushy/index/{}"" _ < "$temp_file"
+    rm "$temp_file"
+}
+
+for file in "$@";
+do
+    # Skips option arguments
+    if [ "$file" = "--cached" ] || [ "$file" = "--force" ];
+    then 
+        continue
+    fi
+
+    # If any of the files are not in the repo, throw error and restore files
+    if [ ! -f "$file" ] || [ ! -f ".pushy/index/$file" ]; 
+    then
+        echo "$0: error: '$file' is not in the pushy repository"
+        restore_files  
+        rm -rf "$temp_dir"  
+        exit 1
+    fi
+
+    last_commit=$(($(cat ".pushy/commits/commit_number.txt") - 1))
+    # If theres a difference between the file in the current directory and the file in the index
+    # and the file in the index is different to the file in the repository
+    if ! diff -q ".pushy/index/$file" ".pushy/$file" >/dev/null 2>&1 &&
+    ! diff -q "$file" ".pushy/index/$file" >/dev/null 2>&1 && 
+    [ "$force_checked" = 0 ];
+    then
+        echo "$0: error: '$file' in index is different to both the working file and the repository"
+        restore_files 
+        rm -rf "$temp_dir"  
+        exit 1  
+    # if theres a difference between the file in the current directory and the file in the repository
+    # and the file in the index is different to the file in the repository
+    # and no options are given
+    elif ! diff -q "$file" ".pushy/$file" >/dev/null 2>&1 &&
+    ! diff -q "$file" ".pushy/index/$file" >/dev/null 2>&1 && 
+    [ "$force_checked" = 0 ] &&
+    [ "$cached_checked" = 0 ];
+    then
+        echo "$0: error: '$file' in the repository is different to the working file"
+        restore_files 
+        rm -rf "$temp_dir"  
+        exit 1
+    # If theres no difference between the file in the current directory and the file in the index
+    elif diff -q "$file" ".pushy/index/$file" >/dev/null 2>&1 && 
+    [ -f ".pushy/index/$file" ] >/dev/null 2>&1;
+    then
+        if output=$(find .pushy/commits -name "$file") && [ -n "$output" ] && 
+        ! diff -q "$file" ".pushy/commits/$last_commit/$file" >/dev/null 2>&1 && 
+        [ "$force_checked" = 0 ] &&
+        [ "$cached_checked" = 0 ];
+        then
+                echo "$0: error: '$file' has staged changes in the index"
+                restore_files 
+                rm -rf "$temp_dir"  
+                exit 1
+        elif output=$(find .pushy/commits -name "$file") && 
+        [ -z "$output" ] &&
+        [ "$force_checked" = 0 ] &&
+        [ "$cached_checked" = 0 ];
+        then
+            echo "$0: error: '$file' has staged changes in the index"
+            restore_files 
+            rm -rf "$temp_dir"  
+            exit 1
+        fi
+    fi
+    backup_file "$file" 
+
+    if [ "$cached_checked" = 0 ]; 
+    then
+        rm "$file"  
+    fi
+
+    rm ".pushy/index/$file"  
+    echo "$file" >> "$temp_file"
+done

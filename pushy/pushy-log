@@ -1,0 +1,39 @@
+#!/bin/dash
+
+# If the .pushy repo hasnt been initialised then throw 
+# uninitalised error and exit
+if [ ! -d ".pushy" ];
+then
+    echo "$0: error: pushy repository directory .pushy not found" 
+    exit 1
+fi
+
+# If there have been no commits made
+if [ -z "$(ls .pushy/commits)" ] 2>/dev/null;
+then
+    exit 0
+fi
+
+# Print commits to file for proper arrangement
+commit_number=0
+for commit in .pushy/commits/*;
+do 
+    filename="$(basename "$commit")"
+    # Ignores the commit number file in each commit folder
+    if [ "$filename" = "commit_number.txt" ];
+    then
+        continue
+    else 
+        echo "$commit_number $(cat "$commit"/message.txt)" >> .pushy/log.txt
+        commit_number=$((commit_number + 1))
+    fi
+done 
+
+if [ -f ".pushy/log.txt" ];
+then
+    # Outputs the sorted files 
+    sort -nr .pushy/log.txt 
+
+    # Clears the log for next log 
+    echo -n "" > .pushy/log.txt 
+fi

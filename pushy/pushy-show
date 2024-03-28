@@ -1,0 +1,50 @@
+#!/bin/dash
+
+# If the .pushy repo hasnt been initialised then throw 
+# uninitalised error and exit
+if [ ! -d ".pushy" ];
+then
+    echo "$0: error: pushy repository directory .pushy not found" 
+    exit 1
+fi
+
+commit=""
+filename=""
+
+# Check for correct number of args + correct formatting of arg
+if [ "$#" -ne 1 ] || ! echo "$1" | grep -E "^.*\:.*$" >/dev/null;
+then
+   echo "usage: $0 <commit>:<filename>"
+else
+    commit=$(echo "$1" | cut -d ":" -f1)
+    filename=$(echo "$1" | cut -d ":" -f2)
+fi 
+
+# If the commit arg was ommitted 
+if [ -z "$commit" ];
+then
+    if [ ! -f ".pushy/index/$filename" ];
+    then
+        echo "$0: error: '$filename' not found in index"
+    else
+        cat .pushy/index/"$filename"
+    fi
+    exit 0
+fi 
+
+# Check if the given commit number exists
+if [ ! -d ".pushy/commits/$commit" ];
+then
+    echo "$0: error: unknown commit '$commit'"
+    exit 1
+fi
+
+# Check if the given filename is a valid file in the commit
+if [ ! -f ".pushy/commits/$commit/$filename" ];
+then
+    echo "$0: error: '$filename' not found in commit $commit" 
+else
+    cat ".pushy/commits/$commit/$filename"
+fi
+
+

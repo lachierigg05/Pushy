@@ -1,0 +1,55 @@
+#!/bin/dash
+
+# When no file arguments are given, throw usage error  
+if [ "$#" -lt 1 ];
+then
+    echo "usage: pushy-add <filenames>"
+    exit 1
+fi
+
+# If the .pushy repo hasnt been initialised then throw 
+# uninitalised error and exit
+if [ ! -d ".pushy" ];
+then
+    echo "$0: error: pushy repository directory .pushy not found" 
+    exit 1
+fi
+
+for file in "$@";
+do
+    # Valid filename check - Filename convention as per ass1 spec
+    if ! echo "$file" | grep -E "^[a-zA-Z0-9][a-zA-Z0-9\-_.]*$" >/dev/null;
+    then
+        echo "$0: error: invalid filename '$file'"
+        exit 1
+    fi
+    
+    # Check for file existence  
+    if [ ! -e "$file" ] && [ ! -e ".pushy/index/$file" ];
+    then 
+        echo "$0: error: can not open '$file'"
+        exit 1
+    fi
+
+    # Checks if ordinary file
+    # If the file doesnt exist at all
+    if [ ! -f "$file" ] && [ ! -f .pushy/index/"$file" ];
+    then
+        echo "$0: error: '$file' is not a regular file"
+        exit 1
+    # If the file has been deleted from the repo
+    elif [ ! -f "$file" ] && [ -f .pushy/index/"$file" ]; 
+    then
+        rm ".pushy/index/$file" 2>/dev/null;
+        exit 0
+    fi
+    # Straight copy if all other conditions are false 
+    cp "$file" .pushy/index 
+
+    # Keep a history of files that have been added to the index for pushy-status purposes
+    if ! grep -q "^$file$" .pushy/.index_history.txt 2>/dev/null; 
+    then  
+    echo "$file" >> .pushy/.index_history.txt 2>/dev/null
+    fi
+
+done
