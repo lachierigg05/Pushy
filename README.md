@@ -35,7 +35,3 @@ Pushy is an ongoing learning project and might not be suitable for production en
 ## Disclaimer
 
 Pushy is not intended as a replacement for robust version control systems like Git. It serves as a learning tool and exploration of shell scripting capabilities. 
-
-## Feedback Welcome
-
-If you have questions, suggestions, or find interesting use cases for Pushy, please open an issue or discussion on the repository. 
