@@ -11,9 +11,9 @@ Pushy is a unique and experimental project that demonstrates the power and flexi
 
 ## Getting Started
 
-1. **Clone the repository:** `git clone https://github.com/your_username/pushy`
+1. **Clone the repository:** `git clone https://github.com/lachierigg05/pushy`
 
-2. **Familiarize yourself with the scripts:**
+2. **Familiarise yourself with the scripts:**
     * `pushy-add`
     * `pushy-commit`
     * `pushy-rm`
